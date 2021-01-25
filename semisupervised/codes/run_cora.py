@@ -21,7 +21,7 @@ opt['use_gold'] = 1
 opt['draw'] = 'smp'
 opt['tau'] = 0.0
 opt['save'] = 'exp_cora'
-opt['mixup_alpha'] =1.0
+opt['mixup_alpha'] = 1.0
 
 
 ### ict hyperparameters ###

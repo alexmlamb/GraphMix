@@ -11,6 +11,8 @@ from layer import GraphConvolution
 import loader
 from shutil import copyfile
 
+from relational_memory import MemReadAndWrite
+
 def mixup_data(x, y, alpha):
     '''Compute the mixup data. Return mixed inputs, pairs of targets, and lambda'''
     if alpha > 0.:
@@ -46,7 +48,8 @@ class GNN(nn.Module):
 
         opt_ = dict([('in', opt['hidden_dim']), ('out', opt['num_class'])])
         self.m2 = GraphConvolution(opt_, adj)
-        
+ 
+        self.mem = MemReadAndWrite()
         
         if opt['cuda']:
             self.cuda()
@@ -59,8 +62,14 @@ class GNN(nn.Module):
         x = F.dropout(x, self.opt['input_dropout'], training=self.training)
         x = self.m1(x)
         x = F.relu(x)
+
+        #print('x shape nomix', x.shape)
         x = F.dropout(x, self.opt['dropout'], training=self.training)
+        
+        x = self.mem(x, aug=False)
+        
         x = self.m2(x)
+
         return x
     
     
@@ -71,10 +80,12 @@ class GNN(nn.Module):
         x = F.dropout(x, self.opt['input_dropout'], training=self.training)
         x = self.m1(x)
         x = F.relu(x)
+
         if layer == 1:
             x, target, idx = get_augmented_network_input(self, x, target, target_discrete, idx,opt)
         x = F.dropout(x, self.opt['dropout'], training=self.training)
         x = self.m2(x)
+
         return x, target, idx
     
     def forward_aux(self, x, target=None, train_idx= None, mixup_input= False, mixup_hidden = False, mixup_alpha = 0.0,layer_mix=None):
@@ -85,6 +96,7 @@ class GNN(nn.Module):
             elif mixup_input == True:
                 layer_mix = 0
 
+            #print('layermix', layer_mix)
     
             if layer_mix ==0:
                 x, target_a, target_b, lam = mixup_gnn_hidden(x, target, train_idx, mixup_alpha)
@@ -93,21 +105,28 @@ class GNN(nn.Module):
     
             x = self.m1.forward_aux(x)
             x = F.relu(x)
+
             if layer_mix == 1:
                 x, target_a, target_b, lam = mixup_gnn_hidden(x, target, train_idx, mixup_alpha)
+
+
+            x = F.dropout(x, self.opt['dropout'], training=self.training)
+            
+            x = self.mem(x, aug=True)
+
+            x = self.m2.forward_aux(x)
+ 
+            return x, target_a, target_b, lam
+        
+        else:
+            x = F.dropout(x, self.opt['input_dropout'], training=self.training)
+            x = self.m1.forward_aux(x)
+            x = F.relu(x)
 
             x = F.dropout(x, self.opt['dropout'], training=self.training)
             x = self.m2.forward_aux(x)
             
-            return x, target_a, target_b, lam
-        
-        else:
-        
-            x = F.dropout(x, self.opt['input_dropout'], training=self.training)
-            x = self.m1.forward_aux(x)
-            x = F.relu(x)
-            x = F.dropout(x, self.opt['dropout'], training=self.training)
-            x = self.m2.forward_aux(x)
+            #x = self.mem(x)
             return x
 
 
